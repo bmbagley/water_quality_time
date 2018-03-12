@@ -1,0 +1,26 @@
+---
+title: "Water Quality Time Series Analysis"
+output: html_notebook
+author: Brandon Bagley
+---
+```{r setup}
+library(tidyverse)
+#
+raw_water <- read.csv('./data/resdetectqntlmt.csv', header = T)
+```
+```{r}
+head(raw_water)
+```
+
+```{r munging}
+#head(raw_water)
+# unique(raw_water$CharacteristicName)
+water_sample <- raw_water %>% 
+  select(OrganizationIdentifier, ActivityIdentifier, MonitoringLocationIdentifier, ResultIdentifier, CharacteristicName, DetectionQuantitationLimitTypeName, DetectionQuantitationLimitMeasure.MeasureValue, DetectionQuantitationLimitMeasure.MeasureUnitCode, ProviderName) %>% 
+  filter(CharacteristicName == c("Manganese", "Lead", "Nitrate", "Nitrite", "Phosporus", "Nitrogen", 'Carbon', 'Nitrogen', 'Calcium', 'Magnesium', 'Sodium', 'Potassium', 'Chloride', 'Sulfate', 'Silica', 'Specific conductance', 'Total dissolved solids'))
+head(water_sample)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
