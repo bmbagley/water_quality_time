@@ -1,74 +1,107 @@
 ---
 title: "Water Quality Time Series Analysis"
-output: html_notebook
-author: Brandon Bagley
+author: "Brandon Bagley"
+output:
+  html_document: default
+  html_notebook: default
 ---
-```{r setup}
-library(tidyverse)
-#
-raw_water <- read.csv('./data/resdetectqntlmt.csv', header = T)
-raw_ow <- read.csv('./data/dvstat', quote = '#', header = T, skip = 49, sep = '\t')
-```
-```{r}
-head(raw_water)
-```
-
-```{r munging}
-#head(raw_water)
-# unique(raw_water$CharacteristicName)
-water_sample <- raw_water %>% 
-  select(OrganizationIdentifier, ActivityIdentifier, MonitoringLocationIdentifier, 
-         ResultIdentifier, CharacteristicName, DetectionQuantitationLimitTypeName, 
-         DetectionQuantitationLimitMeasure.MeasureValue, DetectionQuantitationLimitMeasure.MeasureUnitCode, ProviderName) %>% 
-  filter(CharacteristicName == c("Manganese", "Lead", "Nitrate", "Nitrite", 
-                                 "Phosporus", "Nitrogen", 'Carbon', 'Nitrogen', 
-                                 'Calcium', 'Magnesium', 'Sodium', 'Potassium', 
-                                 'Chloride', 'Sulfate', 'Silica', 'Specific conductance', 
-                                 'Total dissolved solids'))
-head(water_sample)
+```{r setup, message=F, echo = F}
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(PerformanceAnalytics)))
+set.seed(10)
+# Read in raw file
+raw_4870 <- read.csv('data/USGS_03434870_water', header = T, skip = 31, sep = '\t')
+raw_4870 <- raw_4870[-1,] # Remove first line of nonsense
 ```
 
-
-Data for surface water was also downloaded from the USGS with a large header.
-```{r surf_munging}
-head(raw_ow)
-parameter <- data.frame()
-00010		Temperature, water, degrees Celsius		129713	
-00060		Discharge, cubic feet per second		129714
-00095		Specific conductance, water, unfiltered, microsiemens per centimeter at 25 degrees Celsius		129717
-00300		Dissolved oxygen, water, unfiltered, milligrams per liter		129720
-80154		Suspended sediment concentration, milligrams per liter		129723
-80155		Suspended sediment discharge, short tons per day		129724
+```{r munging_cumberland, echo = F}
+wat_cumb <- raw_4870 %>% 
+  select(agency_cd, site_no, datetime, temp_c_av=X130015_00010_00003, 
+         SpC_ms_av=X130016_00095_00003, pH_av=X130017_00400_00003, 
+         DO_mgl_av=X130018_00300_00003) %>% # Rename based on metadata
+  mutate(site_no = paste0(as.character(agency_cd),'_',as.character(site_no)),
+         datetime = as.Date.character(datetime, "%Y-%m-%d"),
+         temp_c_av = as.numeric(as.character(temp_c_av)),
+         SpC_ms_av = as.numeric(as.character(SpC_ms_av)),
+         pH_av = as.numeric(as.character(pH_av)), 
+         DO_mgl_av = as.numeric(as.character(DO_mgl_av)),
+         random = rbinom(nrow(.), 2, .05))
 ```
 
-# agency_cd  agency code
-# site_no    USGS site number
-#
-#
-# Sites in this file include:
-# USGS 03407876 SMOKY CREEK AT HEMBREE, TN
-# 
-# Explanation of Parameter Code and ts_id used in the Statistics Data 
-# parameter_cd	Parameter Name					ts_id	Location Name
-# 00010		Temperature, water, degrees Celsius		129713	
-# 00060		Discharge, cubic feet per second		129714	
-# 00095		Specific conductance, water, unfiltered, microsiemens per centimeter at 25 degrees Celsius		129717	
-# 00300		Dissolved oxygen, water, unfiltered, milligrams per liter		129720	
-# 80154		Suspended sediment concentration, milligrams per liter		129723	
-# 80155		Suspended sediment discharge, short tons per day		129724	
-#
-# Data heading explanations.
-# begin_yr_dt ... First complete year of data of daily mean values for this day.
-# end_yr_dt   ... Last complete year of data of daily mean values for this day.
-# max_va      ... Maximum of daily mean values for this day.
-# min_va      ... Minimum of daily mean values for this day.
-# mean_va     ... Mean of daily mean values for this day.
-# p05_va      ... 05 percentile of daily mean values for this day.
-# p10_va      ... 10 percentile of daily mean values for this day.
-# p20_va      ... 20 percentile of daily mean values for this day.
-# p25_va      ... 25 percentile of daily mean values for this day.
-# p50_va      ... 50 percentile (median) of daily mean values for this day.
-# p75_va      ... 75 percentile of daily mean values for this day.
-# p80_va      ... 80 percentile of daily mean values for this day.
-# p90_va      ... 90 percentile of daily mean values for this day.
-# p95_va      ... 95 percentile of daily mean values for this day.
+Data for surface water was downloaded from the [USGS Water Data For the Nation](https://waterdata.usgs.gov/nwis) website for a site in Tennessee that had multiple measurements for at least a year.  The data is used here to simulate a year of readings from another source to try and identify treands and predict a randomly assigned variable.  The randomly assigned variable could represent a filter change, or maintenance which in the data is named `random`.  The random variable was assigned to remain 0 for 95% of the timespan of the data which ranged from `r min(wat_cumb$datetime)` to `r max(wat_cumb$datetime)`, and score a 1 or 2 for only 5% of the timespan.  
+
+The variables measured at the USGS site #03434870 from the river station were:
+
++ Temperature (Celsius)   
+`temp_c_av`
++ Specific Conductance (Ms per cm at 25C)  
+`SpC_ms_av`
++ pH (Field)  
+`pH_av`
++ Dissolved Oxygen (Mg/L)  
+`DO_mgl_av`
++ Random (Simulating rare occurance event)  
+`random`
+
+## Data exploration
+```{r plot_all, echo = F}
+plot_dta <- wat_cumb %>% 
+  select(datetime, temp_c_av, SpC_ms_av, pH_av, DO_mgl_av, random) %>% 
+  gather("parameter", "value", -datetime) %>% 
+  na.omit()
+
+ggplot(plot_dta, aes(x = datetime, y = value, color = parameter)) +
+  geom_point(size = .5) +
+  scale_x_date(date_breaks = '4 months', date_labels = '%b-%Y')+
+    theme_light() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = 1, size = 8)) +
+  facet_wrap(~parameter, scales = "free_y") +
+  labs(title = "Exploratory analysis at the Cumberland River, TN",
+       subtitle = "All Paramaters plotted through time",
+       x = "")
+
+```
+
+The data is showing seasonal trends in alomst all of the measured paramaters which is to be expected.  There appears to be a strong seasonal trean in the temperature `temp_c_av`, but no seasonal trend in the random data.  A closer examination of the data shows a sine-like wave trend in the temperature that is well fitted.
+
+
+```{r exploration, echo = F}
+Time <- as.numeric(wat_cumb$datetime)
+temp <- wat_cumb$temp_c_av
+
+xc <- cos(2*pi*Time/366)
+xs <- sin(2*pi*Time/366)
+fit.lm <- lm(temp~xc+xs)
+fit <- fitted(fit.lm)
+
+pred <- predict(fit.lm, newdata = data.frame(Time=time))
+
+plot(temp_c_av~as.numeric(datetime), data = wat_cumb,
+     xlab = 'Time', ylab = "Temperature(C)", pch = 19, cex = .5)
+lines(Time, pred, col="blue")
+title(main = "Water Temperature Through Time at the Cumberland River, TN\nSinesoidal Predicted wave overlain")
+```
+```{r cumb_temp, eval = F, echo = F}
+# ggplot(wat_cumb, aes(x = as.numeric(datetime), y = temp_c_av)) +
+#   geom_point(color = 'grey40', size = .5)+
+#   geom_line(color = 'blue', data = pred, aes(x=Time, y=as.numeric(datetime)))+
+#   scale_x_date(date_breaks = '3 months', date_labels = '%b-%Y')+
+#   labs(title = "Water Temperature (C) at USGS_03434870",
+#        x = "", y = "Temperature C") +
+#   theme_light()
+```
+
+
+To further explore the relationship between the data and their correlation to one antoher, a correlation plot with a histogram and significance overlays can be completed using the _Spearman_ correlation coefficent to identify linear and non-linear trends.
+
+```{r corr, echo = F}
+plot_dta = wat_cumb %>% 
+  mutate(date = as.numeric(as.POSIXct(wat_cumb$datetime, format = "%Y-%m-%d"))) %>% 
+  select(date, temp_c_av, SpC_ms_av, pH_av, DO_mgl_av, random)
+correlation <- cor(plot_dta, method = "spearman", use = "complete.obs")
+chart.Correlation(plot_dta, histogram = T, pch = 19, method = 'spearman')
+```
+
+
+The plots indicate a strong relationship between Dissolved oxygen (DO) and temperature.
