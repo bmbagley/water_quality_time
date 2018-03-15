@@ -8,6 +8,7 @@ output:
 ```{r setup, message=F, echo = F}
 suppressWarnings(suppressMessages(library(tidyverse)))
 suppressWarnings(suppressMessages(library(PerformanceAnalytics)))
+suppressWarnings(suppressMessages(library(ISLR)))
 set.seed(10)
 # Read in raw file
 raw_4870 <- read.csv('data/USGS_03434870_water', header = T, skip = 31, sep = '\t')
@@ -105,3 +106,34 @@ chart.Correlation(plot_dta, histogram = T, pch = 19, method = 'spearman')
 
 
 The plots indicate a strong relationship between Dissolved oxygen (DO) and temperature.
+
+## LDA to classify the data into 3 groups (0, 1, 2) based on random, if needed
+# Models
+
+## First Steps
+
+1. Scale the data
+2. identify correlation among scaled results
+3. Determine training/test/validation datasets via sampling techinques
++ Could be based on a single "pump" vs all other pumps or percentage split, also resampling(bootstrap)
+4. build model
+5. Interogate results and if possible the residuals
++ Identify Accuracy, but also ROC curves (AUC)
+6. Re-evaluate model
+7. Model validation via CV, OOB, Resampling techinques
+
+## Models
+### Logistic Regression to determine function of random from inputs
+### Support Vector Machine to identify linear or using a kernel- non-linear function to distinguish between 0 & 1 assuming that 2 is within 1
+### Neural Network to determine random variable with learning based on the probability of classes (0,1,2)
+### Boosted Random FOrest to train the model on outliers whcih is the rare instances of 1 or 2 random
+
+
+```{r}
+wat_max <- apply(wat_cumb[,3:8], 2, max)
+wat_min <- apply(wat_cumb[,3:8], 2, min)
+# wat_scaled <- as.data.frame(scale(wat_cumb[,3:8], center = wat_min, scale = wat_max - wat_min))
+
+
+```
+
