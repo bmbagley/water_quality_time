@@ -9,6 +9,7 @@ output:
 suppressWarnings(suppressMessages(library(tidyverse)))
 suppressWarnings(suppressMessages(library(PerformanceAnalytics)))
 suppressWarnings(suppressMessages(library(ISLR)))
+suppressWarnings(suppressMessages(library(imputeTS)))
 set.seed(10)
 # Read in raw file
 raw_4870 <- read.csv('data/USGS_03434870_water', header = T, skip = 31, sep = '\t')
@@ -63,6 +64,16 @@ ggplot(plot_dta, aes(x = datetime, y = value, color = parameter)) +
        x = "")
 
 ```
+```{r}
+wat_seq <- seq(wat_cumb$datetime[1], wat_cumb$datetime[nrow(wat_cumb)], by = "day")
+wat_sq <- c(2015, as.numeric(format(wat_seq[1], "%j")))
+
+wa_im <- ts(wat_cumb[,c(4:7)], start = wat_sq,
+            frequency = 365)
+
+wa_imp <- na.kalman(wa_im, model = "StructTS")
+plotNA.gapsize(wa_im, wa_imp)
+```
 
 The data is showing seasonal trends in alomst all of the measured paramaters which is to be expected.  There appears to be a strong seasonal trean in the temperature `temp_c_av`, but no seasonal trend in the random data.  A closer examination of the data shows a sine-like wave trend in the temperature that is well fitted.
 
@@ -107,8 +118,6 @@ chart.Correlation(plot_dta, histogram = T, pch = 19, method = 'spearman')
 
 The plots indicate a strong relationship between Dissolved oxygen (DO) and temperature.
 
-## LDA to classify the data into 3 groups (0, 1, 2) based on random, if needed
-# Models
 
 ## First Steps
 
@@ -133,7 +142,7 @@ The plots indicate a strong relationship between Dissolved oxygen (DO) and tempe
 wat_max <- apply(wat_cumb[,3:8], 2, max)
 wat_min <- apply(wat_cumb[,3:8], 2, min)
 # wat_scaled <- as.data.frame(scale(wat_cumb[,3:8], center = wat_min, scale = wat_max - wat_min))
-
+fft(wat_cumb[,3:8])
 
 ```
 
